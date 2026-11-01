@@ -2,9 +2,12 @@
 
 **Fresh minutes from every meeting.**
 
-会议室录音进去，一份结构化、可编辑、可导出的中文会议纪要出来。MeetingMint
-是一个可自托管的会议纪要服务，支持批量转写与实时转写双模式，ASR / LLM
-端点可插拔，全部数据留在你自己的网络里。
+English | [简体中文](README.zh-CN.md)
+
+Upload a meeting recording and get back a structured, editable, exportable
+minutes document. MeetingMint is a self-hosted meeting-minutes service with
+both batch and real-time transcription, pluggable ASR / LLM endpoints, and
+all data staying inside your own network.
 
 ## Features
 
