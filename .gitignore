@@ -1,0 +1,69 @@
+# ===========================================================================
+# Secrets / local config -- never commit the real environment file.
+# ===========================================================================
+.env
+.env.*
+!.env.example
+
+# ===========================================================================
+# OS / editor cruft
+# ===========================================================================
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ===========================================================================
+# Logs and scratch
+# ===========================================================================
+*.log
+npm-debug.log*
+
+# ===========================================================================
+# Python (backend)
+# ===========================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments (any name, anywhere -- including the stray client venv
+# that was previously committed under deploy/asr-service/.venv-client/).
+.venv/
+venv/
+env/
+ENV/
+.venv-client/
+
+# Local dev launcher state (backend/dev_local.py) and runtime data volume.
+.localrun/
+/data/
+
+# ===========================================================================
+# Node / frontend
+# ===========================================================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# ===========================================================================
+# AI assistant local state
+# ===========================================================================
+.claude/
+.zcode/
+
+# ===========================================================================
+# Misc junk guard -- directories accidentally created from mis-typed shell
+# commands (e.g. literal "KEY=value" env assignments passed to mkdir).
+# ===========================================================================
+/backend/*=*

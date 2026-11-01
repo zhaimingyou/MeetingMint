@@ -1,0 +1,26 @@
+[Unit]
+Description=Qwen3.6 35B LLM Server (llama.cpp)
+After=network.target
+
+[Service]
+Type=simple
+User=asr
+Group=asr
+WorkingDirectory=/home/asr
+ExecStart=/home/asr/llama.cpp/build/bin/llama-server \
+    -m /home/asr/models/qwen3.6-35b-a3b-apex-mtp-balanced.gguf \
+    --host 0.0.0.0 \
+    --port 19119 \
+    --api-key change-me-llm-api-key \
+    -ngl 99 \
+    -c 262144 \
+    --spec-type draft-mtp \
+    --spec-draft-n-max 4 \
+    --spec-draft-p-min 0.9
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/asr/llama-server.log
+StandardError=append:/home/asr/llama-server.log
+
+[Install]
+WantedBy=multi-user.target

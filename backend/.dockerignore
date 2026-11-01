@@ -1,0 +1,12 @@
+# Keep the build context (and image) lean and reproducible.
+.venv
+**/__pycache__
+*.pyc
+.pytest_cache
+.hypothesis
+*.egg-info
+tests
+.env
+.DS_Store
+_*.log
+_*.py

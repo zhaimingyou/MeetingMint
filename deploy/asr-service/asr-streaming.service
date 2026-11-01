@@ -1,0 +1,18 @@
+[Unit]
+Description=FunASR Streaming ASR (WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+User=asr
+Group=asr
+WorkingDirectory=/opt/asr-service
+Environment=MODELSCOPE_CACHE=/opt/asr-service/models/modelscope
+ExecStart=/opt/asr-service/.venv/bin/python3 /opt/asr-service/scripts/streaming_server.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/opt/asr-service/logs/streaming.log
+StandardError=append:/opt/asr-service/logs/streaming.log
+
+[Install]
+WantedBy=multi-user.target

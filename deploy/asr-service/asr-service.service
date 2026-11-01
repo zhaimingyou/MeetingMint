@@ -1,0 +1,23 @@
+[Unit]
+Description=FunASR Speech Recognition Service (OpenAI-compatible API)
+After=network.target
+
+[Service]
+Type=simple
+User=asr
+Group=asr
+WorkingDirectory=/opt/asr-service
+Environment=MODELSCOPE_CACHE=/opt/asr-service/models/modelscope
+Environment=HF_HOME=/opt/asr-service/models/huggingface
+ExecStart=/opt/asr-service/.venv/bin/funasr-server \
+    --model sensevoice \
+    --device cuda:0 \
+    --host 0.0.0.0 \
+    --port 19100
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/opt/asr-service/logs/server.log
+StandardError=append:/opt/asr-service/logs/server.log
+
+[Install]
+WantedBy=multi-user.target

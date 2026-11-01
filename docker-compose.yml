@@ -1,0 +1,133 @@
+# Docker Compose for the Meeting Minutes Service (task 14.3).
+#
+# Brings up the full stack: Web_Frontend, Backend_API, Job_Processor (Celery
+# worker), Redis, and the Nginx reverse proxy. The API and worker share ONE
+# named volume mounted at /data for the SQLite database file and audio storage
+# (single-server deployment). Default image platform is linux/arm64 (DGX Spark);
+# the production deployment on 192.0.2.10 uses linux/amd64 via DOCKER_PLATFORM.
+#
+# Configuration & secrets come from a local .env file (copy .env.example to
+# .env and fill it in). ASR/LLM default to the mock implementations so the whole
+# stack runs end to end with NO real models present; switch to the HTTP clients
+# by setting ASR_IMPL/LLM_IMPL=http plus the endpoint URLs / model name in .env.
+#
+# Build (on a non-arm64 host you need buildx + qemu):
+#   docker compose build
+# Run:
+#   docker compose up -d
+# Then open http://<host>/ (Nginx publishes port 80).
+
+services:
+  redis:
+    image: redis:7-alpine
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        TARGET_PLATFORM: ${DOCKER_PLATFORM:-linux/arm64}
+    image: meeting-minutes-api:latest
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Service-to-service wiring (override any .env value for the compose net).
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/db/app.db
+      AUDIO_STORAGE_DIR: /data/audio
+    volumes:
+      - appdata:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Apply migrations + seed the bootstrap admin (idempotent) BEFORE serving.
+    #
+    # LIVE-PATH CONSTRAINT (realtime-meeting-transcription, design FIX C): the
+    # live streaming path keeps per-connection coordination (the per-meeting
+    # append lock, connection-supersede signal, cached WebM header, and
+    # best-effort ASR queue) as PROCESS-LOCAL in-memory state. It guarantees a
+    # single writer per recording only WITHIN ONE PROCESS. The DB partial unique
+    # index enforces one-live-session-per-USER across processes, but NOT
+    # one-writer-per-RECORDING. Therefore the API MUST run as a single process /
+    # single replica: do NOT add `uvicorn --workers N`, do NOT switch to a
+    # multi-worker gunicorn, and do NOT scale this service (e.g. `deploy:
+    # replicas: >1` / `docker compose up --scale api=N`). The single-worker
+    # command below already satisfies this. To scale out later, first replace
+    # the in-process append lock with a cross-process lock (Redis or a DB
+    # advisory lock) plus a shared supersede signal.
+    command: ["sh", "-c", "python -m app.entrypoint && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    # Same image as the API; only the command differs (the Job_Processor role).
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        TARGET_PLATFORM: ${DOCKER_PLATFORM:-linux/arm64}
+    image: meeting-minutes-api:latest
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/db/app.db
+      AUDIO_STORAGE_DIR: /data/audio
+    volumes:
+      - appdata:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        # The API owns migration + bootstrap (so two processes never race on the
+        # same SQLite file); the worker only ensures the data dirs exist. By the
+        # time any job is enqueued, the API has already migrated.
+        condition: service_started
+    command: ["sh", "-c", "python -m app.entrypoint --dirs-only && celery -A app.worker.celery_app:celery_app worker --loglevel=info"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        TARGET_PLATFORM: ${DOCKER_PLATFORM:-linux/arm64}
+    image: meeting-minutes-frontend:latest
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      # ":z" relabels the file for SELinux (AlmaLinux/.26 runs SELinux in
+      # Enforcing mode); it is a no-op on non-SELinux hosts like the DGX.
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro,z
+    depends_on:
+      - api
+      - frontend
+
+volumes:
+  # SQLite DB file + audio storage, shared by the API and the worker.
+  appdata:
+  # Redis persistence (broker/result backend).
+  redis-data:
